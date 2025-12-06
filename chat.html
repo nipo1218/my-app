@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>じっけんしつ</title>
+    
+    <style>
+        /* === フォント設定 (オシゴ) === */
+        @font-face {
+            font-family: 'Oshigo';
+            src: url('oshigo.otf'); /* 同じフォルダに置いてください */
+        }
+
+        :root {
+            --primary: #ff9a9e;
+            --text-main: #5d5d5d;
+            --deep-rose: #e62e5c;
+            /* 全体をオシゴフォントに固定 */
+            --current-font: 'Oshigo', sans-serif;
+        }
+
+        body { 
+            margin: 0; overflow: hidden; 
+            font-family: var(--current-font);
+            background: #a8d5ba; 
+            color: var(--text-main);
+            touch-action: none;
+            width: 100%; height: 100vh;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* === ログイン画面 === */
+        #login-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center; 
+            z-index: 9999;
+            background: rgba(255,255,255,0.8);
+            backdrop-filter: blur(10px);
+            transition: opacity 0.5s;
+        }
+        .login-card {
+            text-align: center; width: 90%; max-width: 320px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px 20px; border-radius: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: 4px solid #fff;
+        }
+        h2 { margin: 0 0 20px 0; color: #ff758c; font-size: 24px; letter-spacing: 2px; font-family: inherit; }
+        
+        .char-select { display: flex; gap: 15px; margin-bottom: 25px; justify-content: center; }
+        .char-opt { 
+            cursor: pointer; background: #fff; border: 2px solid #fff; 
+            padding: 5px; border-radius: 15px; width: 50px; height: 65px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: all 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+        .char-opt.selected { 
+            border-color: var(--primary); background: #fff0f5; 
+            transform: scale(1.1) translateY(-5px);
+            box-shadow: 0 8px 15px rgba(255, 154, 158, 0.4);
+        }
+        .char-opt img { width: 100%; height: 100%; object-fit: contain; }
+
+        input[type="text"] { 
+            padding: 12px; font-size: 16px; width: 80%;
+            border: 2px solid #eee; border-radius: 30px;
+            text-align: center; margin-bottom: 20px; font-family: inherit;
+            outline: none; background: #fff; transition: 0.3s;
+        }
+        button#start-btn { 
+            width: 90%; padding: 14px 0; font-size: 18px; font-weight: 800;
+            border: none; border-radius: 30px;
+            background: linear-gradient(135deg, #ff9a9e, #ff758c); color: white;
+            cursor: pointer; font-family: inherit;
+            box-shadow: 0 4px 15px rgba(255, 117, 140, 0.4);
+            transition: transform 0.1s;
+        }
+        button#start-btn:active { transform: scale(0.95); }
+
+        /* === 設定エリア (左上) === */
+        #settings-area {
+            position: absolute; top: 10px; left: 10px;
+            display: flex; flex-direction: column; gap: 5px;
+            z-index: 100;
+        }
+        #coord-info {
+            background: rgba(0,0,0,0.6); color: #fff;
+            padding: 4px 8px; border-radius: 6px;
+            font-size: 12px; font-family: monospace;
+            pointer-events: none;
+        }
+
+        /* === 退室確認モーダル === */
+        #confirm-modal {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.3); z-index: 10000;
+            justify-content: center; align-items: center;
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background: #fff; padding: 25px; border-radius: 25px;
+            text-align: center; width: 80%; max-width: 280px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            border: 4px solid #ffdeeb;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .modal-btn-row { margin-top: 20px; display: flex; justify-content: center; gap: 15px; }
+        .modal-btn {
+            padding: 10px 20px; border-radius: 20px; border: none; font-family: inherit; font-weight: bold; cursor: pointer;
+        }
+        .btn-yes { background: var(--deep-rose); color: white; box-shadow: 0 4px 10px rgba(230, 46, 92, 0.3); }
+        .btn-no { background: #eee; color: #666; }
+
+        /* === チャットUI (コンパクト＆中央寄せ) === */
+        .chat-ui {
+            position: absolute; 
+            bottom: 5px;
+            left: 50%; 
+            transform: translateX(-50%);
+            width: 80%; 
+            max-width: 340px;
+            display: flex; 
+            align-items: center; 
+            gap: 6px; 
+            pointer-events: none; 
+            z-index: 100;
+            box-sizing: border-box;
+        }
+
+        .chat-ui-btn {
+            pointer-events: auto; 
+            width: 36px; 
+            height: 36px; 
+            flex-shrink: 0;
+            border-radius: 50%; 
+            border: 2px solid #fff;
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+            cursor: pointer; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            font-family: inherit; 
+            background: #fff;
+            font-size: 16px;
+        }
+        #chat-input { 
+            pointer-events: auto; 
+            flex: 1; 
+            min-width: 0; 
+            height: 36px; 
+            padding: 0 12px;
+            border: 2px solid rgba(255,255,255,0.8); 
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.8); 
+            backdrop-filter: blur(5px);
+            font-size: 14px; 
+            outline: none; 
+            font-family: inherit;
+        }
+        
+        /* === チャットログ === */
+        #log-overlay {
+            display: none; 
+            position: absolute; bottom: 80px; 
+            left: 20px; 
+            width: 240px; max-height: 200px;
+            background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(5px);
+            border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.6);
+            flex-direction: column; overflow: hidden; z-index: 150;
+        }
+        .log-list { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column-reverse; gap: 8px; }
+        .log-item { 
+            font-size: 13px; background: rgba(255,255,255,0.6); 
+            padding: 5px 10px; border-radius: 10px; word-break: break-all; 
+        }
+        .log-name { font-weight: bold; color: var(--deep-rose); margin-right: 5px; }
+
+        /* === 定型文 === */
+        #quick-chat-popup {
+            display: none; position: absolute; bottom: 75px; 
+            right: 50%; transform: translateX(180px); 
+            background: rgba(255,255,255,0.9); padding: 10px; border-radius: 20px;
+            z-index: 150; flex-direction: column; gap: 8px; backdrop-filter: blur(10px);
+        }
+        .quick-btn {
+            background: #fff; border: 2px solid #ffdeeb; padding: 8px 15px;
+            border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: bold;
+        }
+        
+        @media (max-width: 480px) {
+            #quick-chat-popup {
+                right: 20px; transform: none; 
+            }
+        }
+    </style>
+</head>
+<body>
+    
+    <div id="login-screen">
+        <div class="login-card">
+            <h2>じっけんしつ</h2>
+            <p style="font-size: 14px; color: #888; margin-bottom: 20px;">アバターをえらんでね</p>
+            <div class="char-select">
+                <div class="char-opt selected" data-id="1"><img src="1.png" alt="1"></div>
+                <div class="char-opt" data-id="2"><img src="2.png" alt="2"></div>
+                <div class="char-opt" data-id="3"><img src="3.png" alt="3"></div>
+                <div class="char-opt" data-id="4"><img src="4.png" alt="4"></div>
+            </div>
+            <input type="text" id="username" placeholder="おなまえ" maxlength="8">
+            <button id="start-btn">ここでおしゃべり</button>
+        </div>
+    </div>
+
+    <div id="settings-area">
+        <div id="coord-info">X: 0, Y: 0</div>
+    </div>
+
+    <div id="confirm-modal">
+        <div class="modal-content">
+            <h3 style="color:var(--deep-rose); margin-top:0;">確認</h3>
+            <p>おへやからでますか？</p>
+            <div class="modal-btn-row">
+                <button class="modal-btn btn-no" onclick="closeExitModal()">いいえ</button>
+                <button class="modal-btn btn-yes" onclick="performExit()">はい</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="log-overlay">
+        <div style="padding:10px 15px; border-bottom:1px solid rgba(255,255,255,0.3); display:flex; justify-content:space-between;">
+            <h3 style="margin:0; font-size:14px; color:var(--deep-rose);">チャットログ</h3>
+            <span onclick="toggleLog()" style="cursor:pointer;">✕</span>
+        </div>
+        <div class="log-list" id="log-list"></div>
+    </div>
+
+    <div id="quick-chat-popup">
+        <div class="quick-btn" onclick="sendQuickChat('ナイス👏')">ナイス👏</div>
+        <div class="quick-btn" onclick="sendQuickChat('おめでとう🎉')">おめでとう🎉</div>
+        <div class="quick-btn" onclick="sendQuickChat('こんにちは！')">こんにちは！</div>
+        <div class="quick-btn" onclick="sendQuickChat('またね👋')">またね👋</div>
+    </div>
+
+    <div class="chat-ui" id="chat-ui" style="display:none;">
+        <div class="chat-ui-btn" onclick="toggleLog()">📋️</div>
+        <input type="text" id="chat-input" placeholder="チャット...">
+        <div class="chat-ui-btn" onclick="toggleQuickChat()" style="background:#fff0f5; color:var(--deep-rose);">💬</div>
+        <button id="send-btn" class="chat-ui-btn" style="background:var(--primary); color:white; border:none;">▶</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        // ★ Deno DeployのURL (適宜書き換えてください)
+        const WS_URL = "wss://dirty-ferret-46.nipo.deno.net"; 
+
+        let ws = null;
+        let myId = null;
+        let players = {};
+        
+        let myVz = 0;
+        const GRAVITY = 0.08;
+        const JUMP_FORCE = -3.0; 
+        const SPEED = 1.0;
+
+        // 移動制限エリア
+        const LIMIT_X_MIN = 35;
+        const LIMIT_X_MAX = 356;
+        const LIMIT_Y_MIN = 110;
+        const LIMIT_Y_MAX = 268;
+
+        // 退室エリア
+        const EXIT_X = 35;
+        const EXIT_Y = 268;
+        const EXIT_RADIUS = 20;
+
+        // 椅子位置
+        const CHAIR_L_X = 100;
+        const CHAIR_L_Y = 180;
+        const CHAIR_R_X = 250;
+        const CHAIR_R_Y = 180;
+        const SIT_DISTANCE = 20;
+
+        let GAME_W = window.innerWidth;
+        let GAME_H = window.innerHeight;
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = GAME_W; canvas.height = GAME_H;
+
+        window.addEventListener('resize', () => {
+            GAME_W = window.innerWidth;
+            GAME_H = window.innerHeight;
+            canvas.width = GAME_W; canvas.height = GAME_H;
+        });
+
+        let myData = { 
+            x: 356, y: 244, z: 0, 
+            name: "", charId: "1", msg: "", 
+            isSitting: false,
+            targetX: null, targetY: null
+        };
+
+        const charW = 58; 
+        const charH = 78;
+        const images = {};
+        
+        function loadImage(src) {
+            const img = new Image();
+            img.src = src;
+            img.onload = () => console.log("Loaded:", src);
+            img.onerror = () => console.error("Failed to load:", src);
+            return img;
+        }
+
+        ['1', '2', '3', '4'].forEach(id => { images[id] = loadImage(`${id}.png`); });
+        
+        // 座り画像（左右別）
+        const sitImagesLeft = {};
+        const sitImagesRight = {};
+        ['1', '2', '3', '4'].forEach(id => { 
+            sitImagesLeft[id] = loadImage(`${id}-Left-sit.png`); 
+            sitImagesRight[id] = loadImage(`${id}-Right-sit.png`); 
+        });
+
+        const chairImgL = loadImage('Left-chair.png');
+        const chairImgR = loadImage('Right-chair.png');
+
+let particles = [];
+        let currentFont = "'Oshigo', sans-serif";
+        // ★追加: OBSモードフラグ
+        let isObsMode = false;
+
+        function initWebSocket() {
+            if(!myId) myId = crypto.randomUUID();
+            ws = new WebSocket(WS_URL);
+            
+            ws.onopen = () => {
+                sendWsData('join', {
+                    x: myData.x, y: myData.y,
+                    name: myData.name, charId: myData.charId, isSitting: myData.isSitting
+                });
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const payload = JSON.parse(event.data);
+                    if (payload.id === myId) return;
+
+                    const type = payload.type;
+                    const pid = payload.id; 
+                    const data = payload.data;
+
+                    if (type === 'update' || type === 'join') {
+                        if (!players[pid]) players[pid] = { ...data, z: 0, vz: 0, msg: "" };
+                        else {
+                            players[pid].x = data.x;
+                            players[pid].y = data.y;
+                            players[pid].name = data.name;
+                            players[pid].charId = data.charId;
+                            players[pid].isSitting = data.isSitting;
+                        }
+                    } else if (type === 'chat') {
+                        if (players[pid]) {
+                            players[pid].msg = data.msg;
+                            addLog(players[pid].name, data.msg);
+                            if(data.msg.includes('ナイス') || data.msg.includes('おめでとう')) {
+                                players[pid].vz = JUMP_FORCE;
+                                spawnConfetti(players[pid].x, players[pid].y);
+                            }
+                            setTimeout(() => { if(players[pid]) players[pid].msg = ""; }, 5000);
+                        }
+                    } else if (type === 'leave') {
+                        delete players[pid];
+                    }
+                } catch(e) {}
+            };
+        }
+
+        function sendWsData(type, data) {
+            if(ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: type, id: myId, data: data }));
+            }
+        }
+
+        const charOpts = document.querySelectorAll('.char-opt');
+        charOpts.forEach(opt => {
+            opt.addEventListener('click', () => {
+                charOpts.forEach(o => o.classList.remove('selected'));
+                opt.classList.add('selected');
+                myData.charId = opt.getAttribute('data-id');
+            });
+        });
+
+        let isModalOpen = false;
+        function checkExitArea() {
+            const dist = Math.sqrt((myData.x - EXIT_X)**2 + (myData.y - EXIT_Y)**2);
+            if (dist < EXIT_RADIUS && !isModalOpen) {
+                openExitModal();
+            }
+        }
+        function openExitModal() {
+            isModalOpen = true;
+            document.getElementById('confirm-modal').style.display = 'flex';
+        }
+        window.closeExitModal = function() { 
+            isModalOpen = false;
+            document.getElementById('confirm-modal').style.display = 'none';
+            myData.x += 10; 
+            myData.y -= 10;
+        }
+        window.performExit = function() { location.reload(); }
+
+document.getElementById('start-btn').addEventListener('click', () => {
+            const name = document.getElementById('username').value;
+            if (!name) return alert("おなまえをいれてね！");
+            
+            myData.name = name;
+            
+            // ★ここを変更: 開始地点を固定 (X=356, Y=244)
+            myData.x = 356;
+            myData.y = 244;
+            // 必要なら向きなどの初期化もここで
+            myData.isSitting = false;
+
+            // ★myIdを先に初期化（gameLoopが動くように）
+            if(!myId) myId = crypto.randomUUID();
+
+            // (以下変更なし)
+            document.getElementById('login-screen').style.opacity = '0';
+            setTimeout(() => { document.getElementById('login-screen').style.display = 'none'; }, 500);
+            
+            document.getElementById('chat-ui').style.display = 'flex';
+            
+            initWebSocket();
+            gameLoop();
+        });
+
+        function toggleLog() {
+            const el = document.getElementById('log-overlay');
+            el.style.display = (el.style.display === 'flex') ? 'none' : 'flex';
+        }
+        function toggleQuickChat() {
+            const el = document.getElementById('quick-chat-popup');
+            el.style.display = (el.style.display === 'flex') ? 'none' : 'flex';
+        }
+        function addLog(name, text) {
+            const list = document.getElementById('log-list');
+            const item = document.createElement('div');
+            item.className = 'log-item';
+            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            item.innerHTML = `<span class="log-name">${name}</span> ${text} <span style="float:right;color:#888;font-size:10px;">${time}</span>`;
+            list.prepend(item); 
+        }
+function sendChat() {
+            const input = document.getElementById('chat-input');
+            const text = input.value;
+            if(!text) return;
+
+            // ★追加: クロマキーモード切替コマンド
+            if (text === '/obs') {
+                toggleObsMode();
+                input.value = '';
+                return; // チャットとして送信せずに終了
+            }
+
+            myData.msg = text;
+            // (以下変更なし)
+            addLog(myData.name, text);
+            if(text.includes('ナイス') || text.includes('おめでとう')) {
+                myVz = JUMP_FORCE;
+                spawnConfetti(myData.x, myData.y);
+            }
+            input.value = '';
+            sendWsData('chat', { msg: text });
+            setTimeout(() => { myData.msg = ""; }, 5000);
+        }
+        function toggleObsMode() {
+            isObsMode = !isObsMode;
+            
+            // UI要素の取得
+            const settings = document.getElementById('settings-area'); // 座標表示
+            const quickChat = document.getElementById('quick-chat-popup'); // 定型文
+            const logOverlay = document.getElementById('log-overlay'); // チャットログ
+            const logBtn = document.querySelector('.chat-ui-btn'); // ログボタン
+            const quickBtn = document.querySelectorAll('.chat-ui-btn')[1]; // 定型文ボタン
+
+            if (isObsMode) {
+                // OBSモードON: 座標表示と定型文ポップアップを隠す
+                settings.style.display = 'none';
+                quickChat.style.display = 'none';
+                // チャットUIは表示したまま（/obsで解除できるように）
+            } else {
+                // OBSモードOFF: 元に戻す
+                settings.style.display = 'flex';
+            }
+        }
+        function sendQuickChat(text) {
+            document.getElementById('chat-input').value = text;
+            sendChat();
+            toggleQuickChat();
+        }
+        document.getElementById('send-btn').addEventListener('click', sendChat);
+        document.getElementById('chat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+
+        const keys = {};
+        window.addEventListener('keydown', e => {
+            if(e.key) keys[e.key.toLowerCase()] = true;
+            if(e.code === 'Space') { e.preventDefault(); if(myData.z === 0) myVz = JUMP_FORCE; }
+        });
+        window.addEventListener('keyup', e => { if(e.key) keys[e.key.toLowerCase()] = false; });
+
+        function getCanvasCoordinates(e) {
+            const rect = canvas.getBoundingClientRect();
+            let cx = e.touches ? e.touches[0].clientX : e.clientX;
+            let cy = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: cx - rect.left, y: cy - rect.top };
+        }
+        const handleInput = (e) => {
+             if(['INPUT','BUTTON','DIV', 'SELECT', 'OPTION'].includes(e.target.tagName) && e.target.id !== 'gameCanvas') return;
+             const coords = getCanvasCoordinates(e);
+             if(myData.isSitting) myData.isSitting = false;
+             myData.targetX = coords.x; myData.targetY = coords.y;
+             document.getElementById('quick-chat-popup').style.display = 'none';
+        };
+        window.addEventListener('mousedown', handleInput);
+        window.addEventListener('touchstart', handleInput, {passive: false});
+
+        let lastUpdateTime = 0;
+        function update() {
+            if(isModalOpen) return;
+            checkExitArea();
+
+            const distToChairL = Math.sqrt((myData.x - CHAIR_L_X)**2 + (myData.y - CHAIR_L_Y)**2);
+            
+            let dx = 0, dy = 0;
+            if(keys['w'] || keys['arrowup']) dy = -SPEED;
+            if(keys['s'] || keys['arrowdown']) dy = SPEED;
+            if(keys['a'] || keys['arrowleft']) dx = -SPEED;
+            if(keys['d'] || keys['arrowright']) dx = SPEED;
+
+            if (dx !== 0 || dy !== 0) myData.isSitting = false;
+
+            if (!myData.isSitting) {
+                if (dx !== 0 || dy !== 0) {
+                    if(dx!==0 && dy!==0) { dx *= 0.707; dy *= 0.707; }
+                    myData.x += dx; myData.y += dy;
+                    myData.targetX = null;
+                } else if (myData.targetX !== null && myData.targetY !== null) {
+                    const diffX = myData.targetX - myData.x;
+                    const diffY = myData.targetY - myData.y;
+                    const dist = Math.sqrt(diffX*diffX + diffY*diffY);
+                    if (dist < SPEED) { 
+                        myData.x = myData.targetX; myData.y = myData.targetY; myData.targetX = null; 
+                    } else { 
+                        myData.x += (diffX/dist)*SPEED; myData.y += (diffY/dist)*SPEED; 
+                    }
+                }
+
+                if (distToChairL < SIT_DISTANCE && !keys['w'] && !keys['a'] && !keys['s'] && !keys['d']) {
+                    myData.isSitting = true;
+                    myData.x = CHAIR_L_X; myData.y = CHAIR_L_Y; myData.targetX = null;
+                }
+            }
+
+            myData.x = Math.max(LIMIT_X_MIN, Math.min(LIMIT_X_MAX, myData.x));
+            myData.y = Math.max(LIMIT_Y_MIN, Math.min(LIMIT_Y_MAX, myData.y));
+            
+            document.getElementById('coord-info').innerText = `X: ${Math.round(myData.x)}, Y: ${Math.round(myData.y)}`;
+
+            myVz += GRAVITY; myData.z += myVz;
+            if(myData.z > 0) { myData.z = 0; myVz = 0; }
+
+            for(let key in players) {
+                if(players[key].z < 0 || players[key].vz < 0) {
+                    players[key].vz += GRAVITY; players[key].z += players[key].vz;
+                    if(players[key].z > 0) { players[key].z = 0; players[key].vz = 0; }
+                }
+            }
+
+            const now = Date.now();
+            if (now - lastUpdateTime > 50) {
+                sendWsData('update', { 
+                    x: Math.round(myData.x * 10) / 10, 
+                    y: Math.round(myData.y * 10) / 10,
+                    name: myData.name, charId: myData.charId,
+                    isSitting: myData.isSitting 
+                });
+                lastUpdateTime = now;
+            }
+
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.x += p.vx; p.y += p.vy; p.vy += 0.5; p.life -= 0.02;
+                if(p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function draw() {
+        if (isObsMode) {
+                        ctx.fillStyle = '#00b140'; // クロマキーグリーン
+                        ctx.fillRect(0, 0, GAME_W, GAME_H);
+                    } else {
+                        ctx.clearRect(0, 0, GAME_W, GAME_H); 
+                    }
+            if(chairImgL.complete && chairImgL.naturalWidth !== 0) ctx.drawImage(chairImgL, CHAIR_L_X - 25, CHAIR_L_Y - 30, 50, 60);
+            if(chairImgR.complete && chairImgR.naturalWidth !== 0) ctx.drawImage(chairImgR, CHAIR_R_X - 25, CHAIR_R_Y - 30, 50, 60);
+
+            const renderList = [];
+            for (let id in players) renderList.push({...players[id], type:'player'});
+            renderList.push({...myData, type:'player', z: myData.z, msg: myData.msg});
+
+            renderList.sort((a, b) => a.y - b.y);
+
+            renderList.forEach(obj => {
+                const p = obj;
+                
+                // 座ってる場合は左右の椅子に応じた画像を選択
+                let img;
+                if (p.isSitting) {
+                    // 左の椅子に近いか右の椅子に近いかで判定
+                    const distToLeft = Math.abs(p.x - CHAIR_L_X);
+                    const distToRight = Math.abs(p.x - CHAIR_R_X);
+                    if (distToLeft < distToRight) {
+                        img = sitImagesLeft[p.charId];
+                    } else {
+                        img = sitImagesRight[p.charId];
+                    }
+                } else {
+                    img = images[p.charId];
+                }
+                const sitOffsetY = p.isSitting ? -10 : 0;
+
+                const drawX = p.x - charW/2;
+                const drawY = (p.y + (p.z||0)) - charH/2 + sitOffsetY;
+
+                ctx.save();
+                ctx.fillStyle = "rgba(0,0,0,0.2)";
+                ctx.beginPath();
+                const scale = 1 - Math.abs(p.z||0)/100;
+                ctx.globalAlpha = Math.max(0.2, scale);
+                ctx.ellipse(p.x, p.y + charH/2 - 5, (charW/2.5)*scale, 8*scale, 0, 0, Math.PI*2);
+                ctx.fill();
+                ctx.restore();
+
+                if (img && img.complete && img.naturalWidth !== 0) {
+                    ctx.drawImage(img, drawX, drawY, charW, charH);
+                } else {
+                    ctx.fillStyle = '#ffb6c1'; ctx.fillRect(drawX, drawY, charW, charH);
+                }
+                
+                ctx.font = `bold 12px ${currentFont}`; 
+                ctx.textAlign = 'center'; ctx.lineJoin = 'round';
+                ctx.lineWidth = 3; ctx.strokeStyle = 'white'; 
+                ctx.strokeText(p.name, p.x, drawY - 5);
+                ctx.fillStyle = '#555'; ctx.fillText(p.name, p.x, drawY - 5);
+                
+                if (p.msg) drawBubble(ctx, p.x, drawY - 25, p.msg);
+            });
+
+            particles.forEach(p => {
+                ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
+            });
+        }
+
+        function drawBubble(ctx, x, y, text) {
+            ctx.font = `14px ${currentFont}`;
+            const metrics = ctx.measureText(text);
+            const w = metrics.width + 24; const h = 32;
+            const bx = x - w / 2; const by = y - h;
+            
+            ctx.save();
+            ctx.shadowColor = "rgba(0,0,0,0.1)"; ctx.shadowBlur = 5;
+            ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+            ctx.beginPath(); ctx.roundRect(bx, by, w, h, 12); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(x - 6, by + h); ctx.lineTo(x, by + h + 6); ctx.lineTo(x + 6, by + h); ctx.fill();
+            ctx.restore();
+            
+            ctx.lineWidth = 2; ctx.strokeStyle = '#fff';
+            ctx.strokeText(text, x, by + h/2 + 5);
+            ctx.fillStyle = "#333"; ctx.textAlign = 'center';
+            ctx.fillText(text, x, by + h/2 + 5);
+        }
+        
+        function spawnConfetti(x, y) {
+            for(let i=0; i<20; i++) {
+                particles.push({
+                    x: x, y: y - 40,
+                    vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10 - 5,
+                    life: 1.0, color: `hsl(${Math.random()*360}, 100%, 75%)`
+                });
+            }
+        }
+        if (!ctx.roundRect) ctx.roundRect = function(x,y,w,h,r){this.rect(x,y,w,h)}
+        function gameLoop() { 
+            if (!myId) return; 
+            update(); 
+            draw(); 
+            requestAnimationFrame(gameLoop); 
+        }
+    </script>
+</body>
+</html>
